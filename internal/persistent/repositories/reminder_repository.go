@@ -22,7 +22,7 @@ func (r *ReminderRepository) Delete(id int) error {
 func (r *ReminderRepository) FindAll() ([]aggregates.Reminder, error) {
 	var reminders []aggregates.Reminder
 
-	if err := r.db.Find(&reminders).Error; err != nil {
+	if err := r.db.Preload("Preset").Find(&reminders).Error; err != nil {
 		return nil, err
 	}
 
@@ -32,7 +32,7 @@ func (r *ReminderRepository) FindAll() ([]aggregates.Reminder, error) {
 func (r *ReminderRepository) FindOne(id int) (*aggregates.Reminder, error) {
 	var reminder aggregates.Reminder
 
-	if err := r.db.First(&reminder, id).Error; err != nil {
+	if err := r.db.Preload("Preset").First(&reminder, id).Error; err != nil {
 		return nil, err
 	}
 
