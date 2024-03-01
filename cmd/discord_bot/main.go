@@ -6,8 +6,8 @@ import (
 	"os/signal"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/gocraft/work"
-	"github.com/gomodule/redigo/redis"
+	"github.com/go-co-op/gocron/v2"
+	"github.com/gookit/event"
 	"github.com/joho/godotenv"
 	"github.com/life4/genesis/slices"
 	"github.com/poseisharp/khairul-bot/internal/app/features"
@@ -23,21 +23,10 @@ import (
 )
 
 var (
-	s        *discordgo.Session
-	GuildID  string = ""
-	commands []interface_features.FeatureCommand
-
-	workerPool *work.WorkerPool
-	enqueuer   *work.Enqueuer
-
-	redisPool = &redis.Pool{
-		MaxActive: 5,
-		MaxIdle:   5,
-		Wait:      true,
-		Dial: func() (redis.Conn, error) {
-			return redis.Dial("tcp", ":6379")
-		},
-	}
+	s         *discordgo.Session
+	GuildID   string = ""
+	commands  []interface_features.FeatureCommand
+	scheduler gocron.Scheduler
 
 	reminderHandler *feature_reminder_worker.ReminderWorkerHandler
 )
@@ -57,6 +46,11 @@ func init() {
 		log.Fatalf("Error initializing database: %v", err)
 	}
 
+	scheduler, err = gocron.NewScheduler()
+	if err != nil {
+		log.Fatalf("Error initializing scheduler: %v", err)
+	}
+
 	serverRepository := repositories.NewServerRepository(db)
 	reminderRepository := repositories.NewReminderRepository(db)
 	presetRepository := repositories.NewPresetRepository(db)
@@ -68,10 +62,9 @@ func init() {
 
 	discordService := services.NewDiscordService(s)
 
-	reminderHandler = feature_reminder_worker.NewReminderWorkerHandler(enqueuer, reminderService, prayerService, discordService)
+	reminderHandler = feature_reminder_worker.NewReminderWorkerHandler(&scheduler, reminderService, prayerService, discordService)
 
-	enqueuer = work.NewEnqueuer("reminder_worker", redisPool)
-	workerPool = work.NewWorkerPool(*reminderHandler, 10, "reminder_worker", redisPool)
+	event.On("worker.run_reminder", event.ListenerFunc(reminderHandler.RunReminder))
 
 	commands = []interface_features.FeatureCommand{
 		features.NewPingCommand(),
@@ -79,11 +72,8 @@ func init() {
 		feature_jadwal.NewJadwalCommand(prayerService, serverService, presetService),
 		feature_jadwal.NewJadwalManualCommand(prayerService),
 
-		feature_adzan.NewAdzanCommand(enqueuer, serverService, reminderService, presetService),
+		feature_adzan.NewAdzanCommand(&scheduler, serverService, reminderService, presetService),
 	}
-
-	workerPool.Job("setup_reminder", reminderHandler.SetupReminder)
-	workerPool.JobWithOptions("run_reminder", work.JobOptions{Priority: 1, MaxFails: 1}, reminderHandler.RunReminder)
 
 	s.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		for _, command := range commands {
@@ -105,10 +95,16 @@ func init() {
 }
 
 func main() {
-	workerPool.PeriodicallyEnqueue("0 1 * * *", "setup_reminder")
+	scheduler.NewJob(gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))), gocron.NewTask(reminderHandler.SetupReminder))
 
-	workerPool.Start()
-	defer workerPool.Stop()
+	scheduler.Start()
+	defer func() {
+		if err := scheduler.Shutdown(); err != nil {
+			log.Println("Error shutting down scheduler:", err)
+		}
+	}()
+
+	defer event.CloseWait()
 
 	if err := s.Open(); err != nil {
 		log.Fatalf("Cannot open the session: %v", err)

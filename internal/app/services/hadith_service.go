@@ -49,7 +49,7 @@ func (p *HadithService) GetBooks() ([]entities.HadithBook, error) {
 func (p *HadithService) GetHadith(bookID string, number int) (*entities.Hadith, error) {
 	var data aggregates.ApiResponse[entities.Hadith]
 
-	req, err := http.NewRequest(http.MethodGet, hadithURL+"/books/"+bookID+"/"+string(number), nil)
+	req, err := http.NewRequest(http.MethodGet, hadithURL+"/books/"+bookID+"/"+string(rune(number)), nil)
 	if err != nil {
 		return nil, err
 	}

@@ -4,9 +4,11 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/gocraft/work"
+	"github.com/go-co-op/gocron/v2"
+	"github.com/gookit/event"
 	"github.com/poseisharp/khairul-bot/internal/app/services"
 	"github.com/poseisharp/khairul-bot/internal/domain/aggregates"
 	"github.com/poseisharp/khairul-bot/internal/domain/value_objects"
@@ -18,14 +20,14 @@ type AdzanCommand struct {
 
 	discordCommand *discordgo.ApplicationCommand
 
-	enqueuer *work.Enqueuer
+	scheduler *gocron.Scheduler
 
 	serverService   *services.ServerService
 	presetService   *services.PresetService
 	reminderService *services.ReminderService
 }
 
-func NewAdzanCommand(enqueuer *work.Enqueuer, serverService *services.ServerService, reminderService *services.ReminderService, presetService *services.PresetService) *AdzanCommand {
+func NewAdzanCommand(scheduler *gocron.Scheduler, serverService *services.ServerService, reminderService *services.ReminderService, presetService *services.PresetService) *AdzanCommand {
 	return &AdzanCommand{
 		discordCommand: &discordgo.ApplicationCommand{
 			Name:        "adzan",
@@ -158,7 +160,7 @@ func NewAdzanCommand(enqueuer *work.Enqueuer, serverService *services.ServerServ
 				},
 			},
 		},
-		enqueuer:        enqueuer,
+		scheduler:       scheduler,
 		serverService:   serverService,
 		reminderService: reminderService,
 		presetService:   presetService,
@@ -423,10 +425,10 @@ func (p *AdzanCommand) handleTest(s *discordgo.Session, i *discordgo.Interaction
 		return err
 	}
 
-	if _, err = p.enqueuer.Enqueue("run_reminder", work.Q{
-		"reminder_id": reminder.ID,
-		"prayer":      prayer,
-		"schedule":    "00:00 MST",
+	if err, _ = event.Fire("worker.run_reminder", event.M{
+		"reminderId": reminder.ID,
+		"prayer":     prayer,
+		"schedule":   time.Now().UTC(),
 	}); err != nil {
 		content := "Reminder test failed"
 		if _, err = s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{

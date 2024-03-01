@@ -4,28 +4,29 @@ import (
 	"log"
 	"time"
 
-	"github.com/gocraft/work"
+	"github.com/go-co-op/gocron/v2"
+	"github.com/gookit/event"
 	"github.com/poseisharp/khairul-bot/internal/app/services"
 )
 
 type ReminderWorkerHandler struct {
-	enqueuer *work.Enqueuer
+	scheduler *gocron.Scheduler
 
 	reminderService *services.ReminderService
 	prayerService   *services.PrayerService
 	discordService  *services.DiscordService
 }
 
-func NewReminderWorkerHandler(enqueuer *work.Enqueuer, reminderService *services.ReminderService, prayerService *services.PrayerService, discordService *services.DiscordService) *ReminderWorkerHandler {
+func NewReminderWorkerHandler(scheduler *gocron.Scheduler, reminderService *services.ReminderService, prayerService *services.PrayerService, discordService *services.DiscordService) *ReminderWorkerHandler {
 	return &ReminderWorkerHandler{
-		enqueuer:        enqueuer,
+		scheduler:       scheduler,
 		reminderService: reminderService,
 		prayerService:   prayerService,
 		discordService:  discordService,
 	}
 }
 
-func (h *ReminderWorkerHandler) SetupReminder(job *work.Job) error {
+func (h *ReminderWorkerHandler) SetupReminder() error {
 	reminders, err := h.reminderService.GetReminders()
 	if err != nil {
 		return err
@@ -37,51 +38,45 @@ func (h *ReminderWorkerHandler) SetupReminder(job *work.Job) error {
 		schedules := h.prayerService.Calculate(reminder.Preset.TimeZone, reminder.Preset.LatLong)
 		dayOfYear := now.YearDay() - 1
 
+		var (
+			reminderId int
+			prayer     string
+			schedule   time.Time
+		)
+
 		if reminder.Subuh {
-			h.enqueuer.EnqueueIn("run_reminder", int64(time.Until(schedules[dayOfYear].Fajr).Seconds()), work.Q{
-				"reminder_id": reminder.ID,
-				"prayer":      "subuh",
-				"schedule":    schedules[dayOfYear].Fajr.Format("15:04 MST"),
-			})
+			reminderId = reminder.ID
+			prayer = "subuh"
+			schedule = schedules[dayOfYear].Fajr
 		}
 		if reminder.Dzuhur {
-			h.enqueuer.EnqueueIn("run_reminder", int64(time.Until(schedules[dayOfYear].Zuhr).Seconds()), work.Q{
-				"reminder_id": reminder.ID,
-				"prayer":      "dzuhur",
-				"schedule":    schedules[dayOfYear].Zuhr.Format("15:04 MST"),
-			})
+			reminderId = reminder.ID
+			prayer = "dzuhur"
+			schedule = schedules[dayOfYear].Zuhr
 		}
 		if reminder.Ashar {
-			h.enqueuer.EnqueueIn("run_reminder", int64(time.Until(schedules[dayOfYear].Asr).Seconds()), work.Q{
-				"reminder_id": reminder.ID,
-				"prayer":      "ashar",
-				"schedule":    schedules[dayOfYear].Asr.Format("15:04 MST"),
-			})
+			reminderId = reminder.ID
+			prayer = "ashar"
+			schedule = schedules[dayOfYear].Asr
 		}
 		if reminder.Maghrib {
-			h.enqueuer.EnqueueIn("run_reminder", int64(time.Until(schedules[dayOfYear].Maghrib).Seconds()), work.Q{
-				"reminder_id": reminder.ID,
-				"prayer":      "maghrib",
-				"schedule":    schedules[dayOfYear-1].Maghrib.Format("15:04 MST"),
-			})
+			reminderId = reminder.ID
+			prayer = "maghrib"
+			schedule = schedules[dayOfYear].Maghrib
 		}
 		if reminder.Isya {
-			h.enqueuer.EnqueueIn("run_reminder", int64(time.Until(schedules[dayOfYear].Isha).Seconds()), work.Q{
-				"reminder_id": reminder.ID,
-				"prayer":      "isya",
-				"schedule":    schedules[dayOfYear-1].Isha.Format("15:04 MST"),
-			})
+			reminderId = reminder.ID
+			prayer = "isya"
+			schedule = schedules[dayOfYear].Isha
 		}
+
+		(*h.scheduler).NewJob(gocron.DurationJob(time.Until(schedule)), gocron.NewTask(h.internalRunReminder, reminderId, prayer, schedule))
 	}
 
 	return nil
 }
 
-func (h *ReminderWorkerHandler) RunReminder(job *work.Job) error {
-	reminderId := job.ArgInt64("reminder_id")
-	prayer := job.ArgString("prayer")
-	schedule := job.ArgString("schedule")
-
+func (h *ReminderWorkerHandler) internalRunReminder(reminderId int, prayer string, schedule time.Time) error {
 	log.Println("Handle run reminder")
 
 	reminder, err := h.reminderService.GetReminder(int(reminderId))
@@ -90,11 +85,20 @@ func (h *ReminderWorkerHandler) RunReminder(job *work.Job) error {
 		return err
 	}
 
-	err = h.discordService.SendTextMessage(reminder.ChannelID, "Waktunya sholat "+prayer+" ("+schedule+")")
+	err = h.discordService.SendTextMessage(reminder.ChannelID, "Waktunya sholat "+prayer+" ("+schedule.Format("15:04 MST")+")")
 
 	if err != nil {
 		log.Println(err)
 	}
 
 	return err
+}
+
+func (h *ReminderWorkerHandler) RunReminder(e event.Event) error {
+	reminderId := e.Get("reminderId").(int)
+	prayer := e.Get("prayer").(string)
+	schedule := e.Get("schedule").(time.Time)
+
+	return h.internalRunReminder(reminderId, prayer, schedule)
+
 }
