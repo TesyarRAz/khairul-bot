@@ -41,27 +41,27 @@ func (h *ReminderWorkerHandler) SetupReminder() error {
 		if reminder.Subuh {
 			schedule := schedules[dayOfYear].Fajr
 
-			(*h.scheduler).NewJob(gocron.DurationJob(now.Sub(schedule)), gocron.NewTask(h.internalRunReminder, reminder.ID, "subuh", schedule))
+			(*h.scheduler).NewJob(gocron.DurationJob(schedule.Sub(now)), gocron.NewTask(h.internalRunReminder, reminder.ID, "subuh", schedule))
 		}
 		if reminder.Dzuhur {
 			schedule := schedules[dayOfYear].Zuhr
 
-			(*h.scheduler).NewJob(gocron.DurationJob(now.Sub(schedule)), gocron.NewTask(h.internalRunReminder, reminder.ID, "dzuhur", schedule))
+			(*h.scheduler).NewJob(gocron.DurationJob(schedule.Sub(now)), gocron.NewTask(h.internalRunReminder, reminder.ID, "dzuhur", schedule))
 		}
 		if reminder.Ashar {
 			schedule := schedules[dayOfYear].Asr
 
-			(*h.scheduler).NewJob(gocron.DurationJob(now.Sub(schedule)), gocron.NewTask(h.internalRunReminder, reminder.ID, "ashar", schedule))
+			(*h.scheduler).NewJob(gocron.DurationJob(schedule.Sub(now)), gocron.NewTask(h.internalRunReminder, reminder.ID, "ashar", schedule))
 		}
 		if reminder.Maghrib {
 			schedule := schedules[dayOfYear].Maghrib
 
-			(*h.scheduler).NewJob(gocron.DurationJob(now.Sub(schedule)), gocron.NewTask(h.internalRunReminder, reminder.ID, "maghrib", schedule))
+			(*h.scheduler).NewJob(gocron.DurationJob(schedule.Sub(now)), gocron.NewTask(h.internalRunReminder, reminder.ID, "maghrib", schedule))
 		}
 		if reminder.Isya {
 			schedule := schedules[dayOfYear].Isha
 
-			(*h.scheduler).NewJob(gocron.DurationJob(now.Sub(schedule)), gocron.NewTask(h.internalRunReminder, reminder.ID, "isya", schedule))
+			(*h.scheduler).NewJob(gocron.DurationJob(schedule.Sub(now)), gocron.NewTask(h.internalRunReminder, reminder.ID, "isya", schedule))
 		}
 	}
 
