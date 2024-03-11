@@ -95,7 +95,7 @@ func init() {
 }
 
 func main() {
-	scheduler.NewJob(gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 0))), gocron.NewTask(reminderHandler.SetupReminder))
+	scheduler.NewJob(gocron.DailyJob(1, gocron.NewAtTimes(gocron.NewAtTime(0, 0, 1))), gocron.NewTask(reminderHandler.SetupReminder), gocron.WithName("setup_reminder"))
 
 	scheduler.Start()
 	defer func() {
