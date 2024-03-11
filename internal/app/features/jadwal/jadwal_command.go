@@ -97,7 +97,7 @@ func (p *JadwalCommand) HandleCommand(s *discordgo.Session, i *discordgo.Interac
 	}
 
 	schedule := p.prayerService.Calculate(preset.TimeZone, preset.LatLong)
-	index := time.Now().Day() - 1
+	index := time.Now().UTC().Day() - 1
 
 	content := "Jadwal Sholat"
 	embeds := []*discordgo.MessageEmbed{

@@ -23,7 +23,7 @@ func (s *PrayerService) Calculate(timezone value_objects.TimeZone, latLong value
 		AsrConvention:      prayer.Shafii,
 		PreciseToSeconds:   true,
 		Corrections:        prayer.ScheduleCorrections{},
-	}, time.Now().Year())
+	}, time.Now().UTC().Year())
 
 	return schedule
 }

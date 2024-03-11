@@ -67,7 +67,7 @@ func (p *JadwalManualCommand) HandleCommand(s *discordgo.Session, i *discordgo.I
 	timezone := optionMap["timezone"].StringValue()
 
 	schedule := p.prayerService.Calculate(value_objects.TimeZone(timezone), latLong)
-	index := time.Now().Day() - 1
+	index := time.Now().UTC().Day() - 1
 
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
